@@ -1,0 +1,247 @@
+{\rtf1\ansi\ansicpg1252\deff0\nouicompat\deflang2057{\fonttbl{\f0\fnil\fcharset0 Calibri;}}
+{\*\generator Riched20 10.0.19041}\viewkind4\uc1 
+\pard\sa200\sl276\slmult1\f0\fs22\lang9 Note for reader, before you read this i didn't expect this to be as lengthy so maybe make a cup of tea or coffee prior and settle down for a long read, it might be over by the time you've finished your tea but i can't promise anything! also i have a very bad flu right now so there may be typos but i've tried to keep this to a minimum. I do apologise in advance if you find any, but i hope you enjoy the long read ahead!\line\line So i actually opt'd to make a guide about some of the things i'm about to discuss and while this knowledge is going to apply to munch it will also apply to EVERY 32bit game you'll come across just incase you ever wondered about how things like this work etc.\line\line just some useless trivia first before i get into some more complex matters (regarding munch)\line\line So extracting the file information from this we find that this was programmed in Visual C++ 8 also known as Visual C++ 2005 with the windows release date of Munch being 2010 (this is what google is telling me so i'm sorry if this is incorrect!), this was probably by design since this update introduced support for many features such as .net framework 2.0 and general improvements to c++,\line\line If you were to take a dive into the assembly you'll find that it uses i386, this is standard but if you wanted to read the assembly code it would be wise to read up on the Intel 386 also known as the 80386,\line\line registers and more information can be read up on wikipedia about that if you want to dive deeper but for the most part i don't want to bore you with this filler information,\par
+Today's topic is actually a talk about how 32bit games can use more memory than 2gb (of ram) and explaining how to do this in a hexeditor for example or using other software to do this, a small note before we go diving into the nitty gritty i want to mention that i've recently uploaded a 4gb patch version of munch on gamebanana to avoid the hassle of doing this manually, while i don't want to shove a link in this document i just thought i'd shamelessly plug that in *cough cough* ANYWAYS...\line\line Now while this information is spoken about online as Large Address Aware i want to go over how you would actually implement this into a 32bit game and how you can do this too for your games, and even delving into software that can do this for you incase you don't want to use a hexeditor.\line\line So first, what is Large Address Aware? *insert Vsauce music here*\line\line Large Address Aware is just a flag on the PE (Portable Executable, if i ever use the word PE again you'll know what i mean)\line\line if you don't know what flags are, imagine them as little checkpoints throughout a marathon, when a runner reaches a flag it gathers information, and continues, these flags are catagorised within sections of your PE such as File Headers and Optional Headers,\par
+Before i dive into each of these sections i'm going to do an info dump on the header addresses and their attributes! \line\line this bit can be skipped over but this is just so you're aware of what this will look like if you decide to do this yourself\line\line\line\line\line  // 00000000 - 0000003F DOS Header\par
+// \par
+// IMAGE_DOS_HEADER:\par
+// 00000000 - 00000001 5A4D = e_magic\par
+// 00000002 - 00000003 0090 = e_cblp\par
+// 00000004 - 00000005 0003 = e_cp\par
+// 00000006 - 00000007 0000 = e_crlc\par
+// 00000008 - 00000009 0004 = e_cparhdr\par
+// 0000000A - 0000000B 0000 = e_minalloc\par
+// 0000000C - 0000000D FFFF = e_maxalloc\par
+// 0000000E - 0000000F 0000 = e_ss\par
+// 00000010 - 00000011 00B8 = e_sp\par
+// 00000012 - 00000013 0000 = e_csum\par
+// 00000014 - 00000015 0000 = e_ip\par
+// 00000016 - 00000017 0000 = e_cs\par
+// 00000018 - 00000019 0040 = e_lfarlc\par
+// 0000001A - 0000001B 0000 = e_ovno\par
+// 0000001C - 0000001D 0000 = e_res[0]\par
+// 0000001E - 0000001F 0000 = e_res[1]\par
+// 00000020 - 00000021 0000 = e_res[2]\par
+// 00000022 - 00000023 0000 = e_res[3]\par
+// 00000024 - 00000025 0000 = e_oemid\par
+// 00000026 - 00000027 0000 = e_oeminfo\par
+// 00000028 - 00000029 0000 = e_res2[0]\par
+// 0000002A - 0000002B 0000 = e_res2[1]\par
+// 0000002C - 0000002D 0000 = e_res2[2]\par
+// 0000002E - 0000002F 0000 = e_res2[3]\par
+// 00000030 - 00000031 0000 = e_res2[4]\par
+// 00000032 - 00000033 0000 = e_res2[5]\par
+// 00000034 - 00000035 0000 = e_res2[6]\par
+// 00000036 - 00000037 0000 = e_res2[7]\par
+// 00000038 - 00000039 0000 = e_res2[8]\par
+// 0000003A - 0000003B 0000 = e_res2[9]\par
+// 0000003C - 0000003F 00000158 = e_lfanew\par
+// \par
+// 0000015C - 0000016F File Header\par
+// \par
+// IMAGE_FILE_HEADER:\par
+// 0000015C - 0000015D 014C = Machine\par
+// 0000015E - 0000015F 0008 = NumberOfSections\par
+// 00000160 - 00000163 5D7FD1C3 = TimeDateStamp\par
+// 00000164 - 00000167 00000000 = PointerToSymbolTable\par
+// 00000168 - 0000016B 00000000 = NumberOfSymbols\par
+// 0000016C - 0000016D 00E0 = SizeOfOptionalHeader\par
+// 0000016E - 0000016F 0102 = Characteristics\par
+// \par
+// 00000170 - 0000024F Optional Header (32-bit)\par
+// \par
+// IMAGE_OPTIONAL_HEADER32:\par
+// 00000170 - 00000171 010B = Magic\par
+// 00000172 - 00000172 0E = MajorLinkerVersion\par
+// 00000173 - 00000173 00 = MinorLinkerVersion\par
+// 00000174 - 00000177 002AB200 = SizeOfCode\par
+// 00000178 - 0000017B 00149000 = SizeOfInitializedData\par
+// 0000017C - 0000017F 00000000 = SizeOfUninitializedData\par
+// 00000180 - 00000183 00286DEE = AddressOfEntryPoint\par
+// 00000184 - 00000187 00001000 = BaseOfCode\par
+// 00000188 - 0000018B 002AD000 = BaseOfData\par
+// 0000018C - 0000018F 00400000 = ImageBase\par
+// 00000190 - 00000193 00001000 = SectionAlignment\par
+// 00000194 - 00000197 00000200 = FileAlignment\par
+// 00000198 - 00000199 0006 = MajorOperatingSystemVersion\par
+// 0000019A - 0000019B 0000 = MinorOperatingSystemVersion\par
+// 0000019C - 0000019D 0000 = MajorImageVersion\par
+// 0000019E - 0000019F 0000 = MinorImageVersion\par
+// 000001A0 - 000001A1 0006 = MajorSubsystemVersion\par
+// 000001A2 - 000001A3 0000 = MinorSubsystemVersion\par
+// 000001A4 - 000001A7 00000000 = Win32VersionValue\par
+// 000001A8 - 000001AB 003FA000 = SizeOfImage\par
+// 000001AC - 000001AF 00000400 = SizeOfHeaders\par
+// 000001B0 - 000001B3 00000000 = CheckSum\par
+// 000001B4 - 000001B5 0002 = Subsystem\par
+// 000001B6 - 000001B7 8140 = DllCharacteristics\par
+// 000001B8 - 000001BB 00100000 = SizeOfStackReserve\par
+// 000001BC - 000001BF 00001000 = SizeOfStackCommit\par
+// 000001C0 - 000001C3 00100000 = SizeOfHeapReserve\par
+// 000001C4 - 000001C7 00001000 = SizeOfHeapCommit\par
+// 000001C8 - 000001CB 00000000 = LoaderFlags\par
+// 000001CC - 000001CF 00000010 = NumberOfRvaAndSizes\par
+// 000001D0 - 000001D3 00000000 = Export.VirtualAddress\par
+// 000001D4 - 000001D7 00000000 = Export.Size\par
+// 000001D8 - 000001DB 00314D7C = Import.VirtualAddress\par
+// 000001DC - 000001DF 000001A4 = Import.Size\par
+// 000001E0 - 000001E3 00366000 = Resource.VirtualAddress\par
+// 000001E4 - 000001E7 0005A900 = Resource.Size\par
+// 000001E8 - 000001EB 00000000 = Exception.VirtualAddress\par
+// 000001EC - 000001EF 00000000 = Exception.Size\par
+// 000001F0 - 000001F3 00000000 = Security.VirtualAddress\par
+// 000001F4 - 000001F7 00000000 = Security.Size\par
+// 000001F8 - 000001FB 003C1000 = Base Reloc.VirtualAddress\par
+// 000001FC - 000001FF 00038C68 = Base Reloc.Size\par
+// 00000200 - 00000203 002E5E80 = Debug.VirtualAddress\par
+// 00000204 - 00000207 00000070 = Debug.Size\par
+// 00000208 - 0000020B 00000000 = Architecture.VirtualAddress\par
+// 0000020C - 0000020F 00000000 = Architecture.Size\par
+// 00000210 - 00000213 00000000 = Global Ptr.VirtualAddress\par
+// 00000214 - 00000217 00000000 = Global Ptr.Size\par
+// 00000218 - 0000021B 002E5F4C = TLS.VirtualAddress\par
+// 0000021C - 0000021F 00000018 = TLS.Size\par
+// 00000220 - 00000223 002E5EF0 = Load Config.VirtualAddress\par
+// 00000224 - 00000227 00000040 = Load Config.Size\par
+// 00000228 - 0000022B 00000000 = Bound Import.VirtualAddress\par
+// 0000022C - 0000022F 00000000 = Bound Import.Size\par
+// 00000230 - 00000233 002AD000 = IAT.VirtualAddress\par
+// 00000234 - 00000237 000005C4 = IAT.Size\par
+// 00000238 - 0000023B 00000000 = Delay Import.VirtualAddress\par
+// 0000023C - 0000023F 00000000 = Delay Import.Size\par
+// 00000240 - 00000243 00000000 = .NET.VirtualAddress\par
+// 00000244 - 00000247 00000000 = .NET.Size\par
+// 00000248 - 0000024B 00000000 = Reserved15.VirtualAddress\par
+// 0000024C - 0000024F 00000000 = Reserved15.Size\par
+// \par
+// 00000250 - 00000277 Section #0: .text\par
+// \par
+// IMAGE_SECTION_HEADER:\par
+// 00000250 - 00000257 .text = Name\par
+// 00000258 - 0000025B 002AB07F = VirtualSize\par
+// 0000025C - 0000025F 00001000 = VirtualAddress\par
+// 00000260 - 00000263 002AB200 = SizeOfRawData\par
+// 00000264 - 00000267 00000400 = PointerToRawData\par
+// 00000268 - 0000026B 00000000 = PointerToRelocations\par
+// 0000026C - 0000026F 00000000 = PointerToLinenumbers\par
+// 00000270 - 00000271 0000 = NumberOfRelocations\par
+// 00000272 - 00000273 0000 = NumberOfLinenumbers\par
+// 00000274 - 00000277 60000020 = Characteristics\par
+// \par
+// 00000278 - 0000029F Section #1: .rdata\par
+// \par
+// IMAGE_SECTION_HEADER:\par
+// 00000278 - 0000027F .rdata = Name\par
+// 00000280 - 00000283 0006A048 = VirtualSize\par
+// 00000284 - 00000287 002AD000 = VirtualAddress\par
+// 00000288 - 0000028B 0006A200 = SizeOfRawData\par
+// 0000028C - 0000028F 002AB600 = PointerToRawData\par
+// 00000290 - 00000293 00000000 = PointerToRelocations\par
+// 00000294 - 00000297 00000000 = PointerToLinenumbers\par
+// 00000298 - 00000299 0000 = NumberOfRelocations\par
+// 0000029A - 0000029B 0000 = NumberOfLinenumbers\par
+// 0000029C - 0000029F 40000040 = Characteristics\par
+// \par
+// 000002A0 - 000002C7 Section #2: .data\par
+// \par
+// IMAGE_SECTION_HEADER:\par
+// 000002A0 - 000002A7 .data = Name\par
+// 000002A8 - 000002AB 0004AFB0 = VirtualSize\par
+// 000002AC - 000002AF 00318000 = VirtualAddress\par
+// 000002B0 - 000002B3 00035000 = SizeOfRawData\par
+// 000002B4 - 000002B7 00315800 = PointerToRawData\par
+// 000002B8 - 000002BB 00000000 = PointerToRelocations\par
+// 000002BC - 000002BF 00000000 = PointerToLinenumbers\par
+// 000002C0 - 000002C1 0000 = NumberOfRelocations\par
+// 000002C2 - 000002C3 0000 = NumberOfLinenumbers\par
+// 000002C4 - 000002C7 C0000040 = Characteristics\par
+// \par
+// 000002C8 - 000002EF Section #3: .gfids\par
+// \par
+// IMAGE_SECTION_HEADER:\par
+// 000002C8 - 000002CF .gfids = Name\par
+// 000002D0 - 000002D3 0000002C = VirtualSize\par
+// 000002D4 - 000002D7 00363000 = VirtualAddress\par
+// 000002D8 - 000002DB 00000200 = SizeOfRawData\par
+// 000002DC - 000002DF 0034A800 = PointerToRawData\par
+// 000002E0 - 000002E3 00000000 = PointerToRelocations\par
+// 000002E4 - 000002E7 00000000 = PointerToLinenumbers\par
+// 000002E8 - 000002E9 0000 = NumberOfRelocations\par
+// 000002EA - 000002EB 0000 = NumberOfLinenumbers\par
+// 000002EC - 000002EF 40000040 = Characteristics\par
+// \par
+// 000002F0 - 00000317 Section #4: .tls\par
+// \par
+// IMAGE_SECTION_HEADER:\par
+// 000002F0 - 000002F7 .tls = Name\par
+// 000002F8 - 000002FB 00000009 = VirtualSize\par
+// 000002FC - 000002FF 00364000 = VirtualAddress\par
+// 00000300 - 00000303 00000200 = SizeOfRawData\par
+// 00000304 - 00000307 0034AA00 = PointerToRawData\par
+// 00000308 - 0000030B 00000000 = PointerToRelocations\par
+// 0000030C - 0000030F 00000000 = PointerToLinenumbers\par
+// 00000310 - 00000311 0000 = NumberOfRelocations\par
+// 00000312 - 00000313 0000 = NumberOfLinenumbers\par
+// 00000314 - 00000317 C0000040 = Characteristics\par
+// \par
+// 00000318 - 0000033F Section #5: _RDATA\par
+// \par
+// IMAGE_SECTION_HEADER:\par
+// 00000318 - 0000031F _RDATA = Name\par
+// 00000320 - 00000323 00000030 = VirtualSize\par
+// 00000324 - 00000327 00365000 = VirtualAddress\par
+// 00000328 - 0000032B 00000200 = SizeOfRawData\par
+// 0000032C - 0000032F 0034AC00 = PointerToRawData\par
+// 00000330 - 00000333 00000000 = PointerToRelocations\par
+// 00000334 - 00000337 00000000 = PointerToLinenumbers\par
+// 00000338 - 00000339 0000 = NumberOfRelocations\par
+// 0000033A - 0000033B 0000 = NumberOfLinenumbers\par
+// 0000033C - 0000033F 40000040 = Characteristics\par
+// \par
+// 00000340 - 00000367 Section #6: .rsrc\par
+// \par
+// IMAGE_SECTION_HEADER:\par
+// 00000340 - 00000347 .rsrc = Name\par
+// 00000348 - 0000034B 0005A900 = VirtualSize\par
+// 0000034C - 0000034F 00366000 = VirtualAddress\par
+// 00000350 - 00000353 0005AA00 = SizeOfRawData\par
+// 00000354 - 00000357 0034AE00 = PointerToRawData\par
+// 00000358 - 0000035B 00000000 = PointerToRelocations\par
+// 0000035C - 0000035F 00000000 = PointerToLinenumbers\par
+// 00000360 - 00000361 0000 = NumberOfRelocations\par
+// 00000362 - 00000363 0000 = NumberOfLinenumbers\par
+// 00000364 - 00000367 40000040 = Characteristics\par
+// \par
+// 00000368 - 0000038F Section #7: .reloc\par
+// \par
+// IMAGE_SECTION_HEADER:\par
+// 00000368 - 0000036F .reloc = Name\par
+// 00000370 - 00000373 00038C68 = VirtualSize\par
+// 00000374 - 00000377 003C1000 = VirtualAddress\par
+// 00000378 - 0000037B 00038E00 = SizeOfRawData\par
+// 0000037C - 0000037F 003A5800 = PointerToRawData\par
+// 00000380 - 00000383 00000000 = PointerToRelocations\par
+// 00000384 - 00000387 00000000 = PointerToLinenumbers\par
+// 00000388 - 00000389 0000 = NumberOfRelocations\par
+// 0000038A - 0000038B 0000 = NumberOfLinenumbers\par
+// 0000038C - 0000038F 42000040 = Characteristics\line\line\line\line\line Welcome back! Hopefully i didn't lose my train of thought after copy and pasting that information for you but i'll try my best to get back on track!\line\par
+File headers! \line\line So what is this about? well this section defines what assembly the program uses and what characteristics it uses, in this case Munch uses I386 but unless you are deep diving into assembly you won't really need to know that information,\line\line now the characteristrics is where things get more useful for us, from the information above we can see the current value of the characterstics as 0102, i've dragged that down here so you don't need to scroll up \line\line "// 0000016E - 0000016F 0102 = Characteristics "\par
+\par
+now what does 0102 tell us? it tells us that the program is 32bit and that the file is an executable, neet right!\line\line now while you can change this to MULTIPLE things, lets just talk about how we change that to use 4gb, to change the flag to use 4gb we change 0102 to 0122, such a subtle change but lets explain whats going on here, this doesn't instantly allow the usage of 4gb like you'd image, what this is saying is "I'll use more than 2gb if i need to" , this might not sound like much for a performance increase but allowing that space to be used will prevent the program from running out of memory if garbage collection isn't great, this is also used for stuff like fallout NV modding,\line\line Now before you start going into every single 32bit game you have in a hex editor or downloading weird software just to do that yourself i want to go back to fallout NV for a moment, there was a patch created for that game already and the software can be found online for it, now why is this even relevant? well did you know you can use the fallout NV patcher on ANY 32bit game? Why did i make a patch for the game if there are already options for it already? and Why am i explaining how this all works if you can just do that? ... Well... that is a good question and honestly just so people are aware of what these things do to PE's and how it all works... and because i wanted to...\line\line Now then! lets get back to Munch for now, If you've changed the File Header characteristics to 0122 you've successfully changed over your game to use 4gb of ram! \line\line lets dive into the optional headers since this is where some "magic" can happen! (you'll get the pun in a second)\par
+\par
+//00000170 - 00000171 010B = Magic\par
+\par
+The "magic"... not such a great pun after all...\line\line so what is this? well the magic defines what executable this is, now while above we mentioned in the file header that 0102 tells us that the file is an executable and uses 32bit this is sort of like a check of sorts, you'll understand in a moment,\line\line Magic is currently 010B , that means its a PE32, now what if you changed that, well there would be conflicting issues, but what if we changed it ALL to PE64? well you'll now have a bunch more registers that just wouldn't get used and error out leading to a non functional PE, but what are the options just out of curiosity? Well we have PE32 (010B), PE64 (020B) and ROM (0107),\par
+now why is any of that important and why is there an option for ROM?\line\line well at this point i think more knowledge would be better than to leave any of this out without obviously cluttering the entire thing in gibberish, so lets head down to subsystems in the Optional Headers catagory..\line\par
+\par
+// 000001B4 - 000001B5 0002 = Subsystem\par
+\par
+\par
+Here we are... Subsystem 0002.. \line\line This defines that we are using a Windows GUI, Well now what can this be changed to? well.. Just to give the curious some more information on this. Xbox would be 000E in the Subsystem, that's right, you could change your executable to think it requires an Xbox to launch instead of launching through the Windows GUI, **WARNING** changing this to Xbox, saving and then reverting changes CAN break your game, this can cause major corruptions and it is not advised to change this.\line\line While there are MANY MANY options that can be changed here we really don't need to change any of them thus far, But the same as the previous File Headers the real juicy things are in the Characteristics, Now, if you're in the Optional Header section you'll be looking at the dllCharacteristics, this is where alot of things can change, and while i highly suggest you don't change this lets talk about them.\line\par
+// 000001B6 - 000001B7 8140 = DllCharacteristics\par
+\par
+Here we go again... 8140, what does this all mean?\line\line well here is where things will get a little... FuNkY...\line\line First up 8140 means 3 things, Dll's can move, image is NX compatible and Terminal Server Aware....\line\line Quite the mouthful..\line\line So what do ALL these things mean??\line\line Well Dll's moving is basically allowing Dll's that are associated with the PE to be able to relocate and move to a different memory location ENTIRELY while running the game!\par
+this next bit gets abit complicated so i'm going to try my absolute best at explaining what this means, Having this enabled like it currently is ensures that the executable can work smoothly in enviroments where dynamic loading and relocations are common such as multiple processors or applications running concurrently,\line\line NX compatiblilty means that it supports DEP (data execution prevention) or No-eXecute technology, NX is a security feature that prevents malicious code from executing in certain parts of memory! \line\line But what about Terminal Server Aware...?\line\line Well this means that the PE is designed to work correctly in a Windows Server Enviroment... why does that matter you might be wondering.. Well this means that the program is aware of multiple user enviroments and can also be handled by multiple users without encountering conflicts or issues. \line\line Now while i have explained alot of features why am i mentioning these things, well with careful modifications these could be disabled but this is something i plan to do and to test thoroughly before even releasing such a thing. and thats only 3 of the MANY options that are included in the dllcharacteristics section, while i haven't gone into details about the other values this section includes i wanted to only breifly go over what they were and what is currently set for Munch.\par
+Now from this documentation i've provided i just wanted people to be aware of how 4gb patches are made for 32bit games and what they actually do to the game, since it is sort of almost a baitish title of these things, but they do allow different features to bypass limitations of memory such as mods requiring more memory,\line\line While this bit of text hasn't gone in depth with how to actually reverse engineer games itself and how to patch features this was more of just a bit of documentation i wanted to make for fun but also like a knowledge transfer for others to experiment without them getting stuck in a sort of cycle looking online for a specfic 4gb patch for a specific game, and even how to make it yourself!\line\line this was all written up for fun so i hope you enjoyed the read and some little basic bits for people to chow down on if they like reading.\line\line I'll also be uploading this to my github just since i spent awhile writing this out and don't want it to go to waste! \line\line Hope you enjoyed and maybe i'll write more stuff later down the line!\line\par
+}
+ 
